@@ -1,104 +1,79 @@
-# COBEC Policy Assistant (RAG-Based AI System)
+# Q18 – Salary Prediction (Multivariate Linear Regression + PCA)
 
-This project is a GenAI-powered question-answering assistant designed to retrieve answers from COBEC policy documents based on version and access-level filters using a Retrieval-Augmented Generation (RAG) pipeline.
-
----
-
-## 🔧 Tech Stack
-
-- **LangChain** – Orchestration layer
-- **Mistral-7B-Instruct** – Answer generation LLM
-- **SentenceTransformer (MiniLM)** – Embedding model for document chunks
-- **ChromaDB** – Vector store with persistent metadata support
-- **Streamlit** – Frontend interface for interacting with the assistant
+### 🎯 Objective
+Build a multivariate linear regression model to predict salaries based on various attributes including job title, location, employment status, and company type. Explore the impact of dimensionality reduction using PCA.
 
 ---
 
-## 📁 Directory Structure
-
-```
-.
-├── docs/                      # Folder to store all COBEC PDF documents
-│   ├── COBECPolicy_v1_All.pdf
-│   ├── COBECPolicy_v2_HR.pdf
-│   └── COBECPolicy_v3_Legal.pdf
-├── embeddings/chroma_db/     # ChromaDB persistent store
-├── streamlit_app.py          # Main Streamlit UI
-├── models.py                 # LLM loading and answer generation
-├── rag_pipeline.py           # PDF processing and RAG pipeline
-├── app.py                    # Terminal-based Q&A interface
-└── README.md
-```
+### 📦 Dataset Overview
+- **Rows**: 22,770
+- **Features**: Job title, company, employment type, rating, location, and salary
+- **Target**: Salary (in INR)
 
 ---
 
-## 🚀 How It Works
+### ✅ Project Pipeline
 
-1. **PDF Parsing** – Files in `docs/` are parsed and chunked.
-2. **Embedding** – Chunks are embedded using MiniLM and stored in ChromaDB.
-3. **Version + Access Filtering** – Chunks are tagged with version and access-level metadata.
-4. **Semantic Search** – Chunks matching the question and metadata are retrieved.
-5. **LLM Answering** – Mistral generates a final answer using top-k relevant chunks.
-6. **Frontend** – Users select version/access level and ask questions via Streamlit.
+1. **Data Preprocessing**
+   - Normalized column names
+   - Dropped redundant fields (e.g., raw job title where job roles already exist)
+   - Bucketed `company_name` into Top 50 + "Other"
 
----
+2. **Feature Engineering**
+   - One-hot encoded categorical features: job roles, company, location, employment type
+   - Scaled numerical features using `StandardScaler`
 
-## 🧪 Supported File Naming Format
+3. **Full Feature Regression**
+   - Trained LinearRegression on all 74 features
+   - Visualized actual vs predicted salaries and residuals
 
-```
-COBECPolicy_<version>_<access>.pdf
+4. **PCA Dimensionality Reduction**
+   - Applied PCA with 2 and 3 components
+   - Explained Variance:
+     - PCA(2): 5.6%
+     - PCA(3): 7.8%
+   - Extracted top contributing features for each component
 
-Examples:
-COBECPolicy_v1_All.pdf
-COBECPolicy_v2_HR.pdf
-COBECPolicy_v3_Legal.pdf
-```
-
----
-
-## 🛠️ Run the App
-
-### Step 1: Embed All Documents
-```bash
-python -c "from rag_pipeline import run_pipeline; run_pipeline()"
-```
-
-### Step 2: Launch Streamlit UI
-```bash
-streamlit run streamlit_app.py
-```
+5. **Regression on PCA-reduced Features**
+   - Trained new models on PCA(2) and PCA(3)
+   - Visualized predictions and residuals
 
 ---
 
-## 📌 Smart Behavior
+### 📊 Final Comparison – Full vs PCA-Based Models
 
-- Version filtering is strict (e.g., v1 ≠ v2).
-- Access filtering supports fallback to `"All"` (e.g., HR users can also access `"All"` chunks).
-- No chunk = no answer (with warning shown to user).
-
----
-
-## ✅ Test Questions
-
-### For HR (`v2`, `HR`)
-- What actions does HCLTech take when an instance of child labor is reported?
-- How does HCLTech ensure workplace safety and health for its employees?
-
-### For Legal (`v3`, `Legal`)
-- What rights and accommodations does HCL provide for employees with disabilities?
-- How can an employee raise a complaint regarding discrimination under the Equal Opportunity Policy?
+| Model                  | RMSE (₹)     | R² Score | Explained Variance |
+|------------------------|-------------|----------|---------------------|
+| **Full Model**         | 600,677.75  | 0.110    | —                   |
+| **PCA (2 components)** | 635,592.81  | 0.004    | 5.6%                |
+| **PCA (3 components)** | 618,520.15  | 0.057    | 7.8%                |
 
 ---
 
-## 📈 Future Scope
+### 🔍 PCA Feature Insights
 
-- Upload support for new policies on UI
-- Document comparison mode
-- Hybrid search (BM25 + vector rerankers)
+| Component | Dominant Features                             |
+|-----------|------------------------------------------------|
+| PC1       | Intern vs Full-Time, Company Tier, Java roles |
+| PC2       | SDE, IOS roles, Full-Time Status              |
+| PC3       | Java vs SDE, Location (e.g., Chennai)         |
 
 ---
 
-## 👤 Author
+### 📈 Visualizations
+- Actual vs Predicted Salaries (All Models)
+- Residual Distributions
+- PCA 2D and 3D Projections
 
-**Rohan Solanki**  
-ID: 52033152
+---
+
+### 🧠 Conclusion
+- Full model outperformed PCA-reduced models, as PCA discarded too much salary-related variance
+- PCA revealed core trends in employment and job-type impact on salary
+- Company tier, employment status, and role were key drivers of variance
+
+---
+
+### 🛠️ Tech Stack
+- Python 3.9
+- scikit-learn, pandas, matplotlib, seaborn
