@@ -1,33 +1,35 @@
-from rag_pipeline import run_pipeline, search_similar_chunks
+import os
+import re
+import streamlit as st
+from rag_pipeline import search_similar_chunks
 from models import generate_answer
 
+st.set_page_config(page_title="RAG Research Assistant", layout="centered")
+st.title("📘 Multi-Document RAG-Based Research Companion")
 
-version = input("📄 Choose document version (default: v1): ").strip() or "v1"
-access = input("🔐 Enter your access level (All/HR/Legal): ").strip() or "All"
+# Step 1: Detect all uploaded research paper PDFs
+pdf_files = [f for f in os.listdir("docs") if f.endswith(".pdf")]
+available_docs = [f.replace(".pdf", "") for f in pdf_files]
 
-def main():
-    
-    print("📘 Welcome to the COBEC Policy Assistant (RAG-based)")
+# Sidebar for filtering
+st.sidebar.markdown("### 🔍 Document Filter")
+selected_docs = st.sidebar.multiselect("Select documents to search", available_docs, default=available_docs)
 
-    while True:
-        question = input("\n🧠 Ask a question (or type 'exit'): ")
-        if question.lower() in ['exit', 'quit']:
-            break
-        
-        # Step 1: Retrieve relevant chunks
-        chunks = search_similar_chunks(question, top_k=3, version=version, access_level=access)
+# Main UI
+user_question = st.text_input("🧠 Ask a research question:")
+
+if user_question:
+    with st.spinner("Retrieving and answering..."):
+        chunks = search_similar_chunks(user_question, top_k=5, filter_docs=selected_docs)
+
         if not chunks:
-            print("⚠️ No matching content found for this version/access level.")
-            continue
+            st.warning("⚠️ No relevant chunks found.")
+        else:
+            answer = generate_answer(user_question, chunks)
+            st.markdown("### 💬 Answer")
+            st.success(answer)
 
-        # Step 2: Generate final answer using the Mistral model
-        answer = generate_answer(question, chunks)
-
-        print("\n💬 Answer:\n")
-        print(answer)
-        print("\n" + "-"*50 + "\n")
-
-
-
-if __name__ == "__main__":
-    main()
+            with st.expander("📄 Retrieved Context Chunks"):
+                for i, c in enumerate(chunks):
+                    st.markdown(f"**Chunk {i+1}** — *{c['source']} / {c['section']}*")
+                    st.code(c["chunk"])

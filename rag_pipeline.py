@@ -1,26 +1,35 @@
 import os
-import PyPDF2
+import fitz  
 from sentence_transformers import SentenceTransformer
-import chromadb
 from chromadb import PersistentClient
-from chromadb.config import Settings
-from chromadb.utils import embedding_functions
+from sklearn.metrics.pairwise import cosine_similarity
+import numpy as np
 
-PDF_PATH = "docs/COBECPolicy_v1.pdf"
 CHROMA_DB_DIR = "embeddings/chroma_db"
+DOCS_DIR = "docs/"
+EMBED_MODEL = "all-MiniLM-L6-v2"
 CHUNK_SIZE = 500
 CHUNK_OVERLAP = 100
 
-# STEP 1: Load PDF and extract text
-def extract_pdf_text(pdf_path):
-    text = ""
-    with open(pdf_path, 'rb') as file:
-        reader = PyPDF2.PdfReader(file)
-        for page in reader.pages:
-            text += page.extract_text() or ""
-    return text
+# === Step 1: Extract and segment the PDF ===
+def extract_sections(pdf_path):
+    doc = fitz.open(pdf_path)
+    text = "\n".join([page.get_text() for page in doc])
+    doc.close()
 
-# STEP 2: Split text into overlapping chunks
+    # Simple segmentation by headings — can improve with regex
+    sections = {}
+    current_section = "Unknown"
+    for line in text.split("\n"):
+        line = line.strip()
+        if line.lower().startswith(("abstract", "introduction", "method", "methodology", "experiment", "results", "conclusion", "references")):
+            current_section = line
+            sections[current_section] = ""
+        elif current_section in sections:
+            sections[current_section] += line + " "
+    return sections
+
+# === Step 2: Chunk the section text ===
 def chunk_text(text, chunk_size=CHUNK_SIZE, overlap=CHUNK_OVERLAP):
     chunks = []
     start = 0
@@ -30,63 +39,54 @@ def chunk_text(text, chunk_size=CHUNK_SIZE, overlap=CHUNK_OVERLAP):
         start += chunk_size - overlap
     return chunks
 
-# step 3: Embed and store in ChromaDB
-def embed_and_store(chunks, version="v1", access_level="All"):
-    #initialize sentence transformer
-    embedder = SentenceTransformer('all-MiniLM-L6-v2')
-    #initialize ChromaDB client
-    chroma_client = PersistentClient(path=CHROMA_DB_DIR)
+# === Step 3: Embed and store in ChromaDB ===
+def embed_sections(sections, doc_name="paper"):
+    embedder = SentenceTransformer(EMBED_MODEL)
+    client = PersistentClient(path=CHROMA_DB_DIR)
+    collection = client.get_or_create_collection("research_docs")
 
-    #create collection ( or get if exists)
-    collection = chroma_client.get_or_create_collection("cobec_docs")
-
-    #embed and insert chunks
-    for i, chunk in enumerate(chunks):
-        embedding = embedder.encode(chunk).tolist()
-        metadata = {
-            "version": version,
-            "access_level": access_level
-        }
-        collection.add(
-            documents=[chunk],
-            embeddings=[embedding],
-            ids=[f"{version}-chunk-{i}"],
-            metadatas=[metadata]
-        )
-
-    print(f"✅ Stored {len(chunks)} chunks in ChromaDB with metadata.")
-
-# Run the pipeline
-
-def run_pipeline():
-    pdf_dir = "docs/"
-    print("🔍 Scanning for PDF files...")
-
-    for filename in os.listdir(pdf_dir):
-        if filename.endswith(".pdf") and "COBECPolicy" in filename:
-            # Parse version and access from filename (e.g., COBECPolicy_v1_HR.pdf)
-            parts = filename.replace(".pdf", "").split("_")
-            if len(parts) >= 3:
-                version = parts[1]
-                access = parts[2]
-            else:
-                version = "v1"
-                access = "All"
-
-            print(f"📄 Processing {filename} | version={version}, access={access}")
-            text = extract_pdf_text(os.path.join(pdf_dir, filename))
-            chunks = chunk_text(text)
-            embed_and_store(chunks, version=version, access_level=access)
+    all_chunks = 0
+    for section_name, section_text in sections.items():
+        chunks = chunk_text(section_text)
+        for i, chunk in enumerate(chunks):
+            embedding = embedder.encode(chunk).tolist()
+            metadata = {
+                "section": section_name,
+                "source": doc_name
+            }
+            collection.add(
+                documents=[chunk],
+                embeddings=[embedding],
+                metadatas=[metadata],
+                ids=[f"{doc_name}-{section_name}-{i}"]
+            )
+            all_chunks += 1
+    print(f"✅ Stored {all_chunks} chunks in ChromaDB.")
 
 
-# STEP 4: Retrieve relevant chunks based on query
+# === Step 3: Rerank the chunks based on similarity ===
+def rerank_chunks(query, chunks, embedder):
+    query_embedding = embedder.encode([query])
+    chunk_embeddings = embedder.encode([c["chunk"] for c in chunks])
 
-def search_similar_chunks(query, top_k=3, version="v1", access_level="All"):
-    embedder = SentenceTransformer('all-MiniLM-L6-v2')
+    scores = cosine_similarity(query_embedding, chunk_embeddings)[0]
+    
+    # Pair each chunk with its score
+    reranked = sorted(
+        zip(chunks, scores),
+        key=lambda x: x[1],  # sort by score descending
+        reverse=True
+    )
+    
+    return [item[0] for item in reranked]
+
+# === Add Retrieval Functionality ===
+def search_similar_chunks(query, top_k=5, filter_docs=None):
+    embedder = SentenceTransformer("all-MiniLM-L6-v2")
     query_embedding = embedder.encode(query).tolist()
 
-    chroma_client = PersistentClient(path=CHROMA_DB_DIR)
-    collection = chroma_client.get_collection("cobec_docs")
+    client = PersistentClient(path="embeddings/chroma_db")
+    collection = client.get_collection("research_docs")
 
     results = collection.query(
         query_embeddings=[query_embedding],
@@ -94,15 +94,28 @@ def search_similar_chunks(query, top_k=3, version="v1", access_level="All"):
         include=["documents", "metadatas"]
     )
 
-    # ✅ Check if results are empty
-    if not results["documents"] or not results["documents"][0]:
+    if not results["documents"] or not results["metadatas"]:
         return []
 
-    # ✅ Now safely filter
-    filtered = [
-        doc for doc, meta in zip(results["documents"][0], results["metadatas"][0])
-        if meta.get("version") == version and (
-            meta.get("access_level") == "All" or meta.get("access_level") == access_level
-        )
+    # Filter by selected documents (if any)
+    combined = [
+        {
+            "chunk": doc,
+            "source": meta.get("source", "Unknown"),
+            "section": meta.get("section", "N/A")
+        }
+        for doc, meta in zip(results["documents"][0], results["metadatas"][0])
+        if (not filter_docs or meta.get("source", "") in filter_docs)
     ]
-    return filtered[:top_k]
+    
+    reranked = rerank_chunks(query, combined, embedder)
+    return reranked[:top_k]
+
+# === Step 4: Run the full pipeline ===
+def run_pipeline():
+    for filename in os.listdir(DOCS_DIR):
+        if filename.endswith(".pdf"):
+            path = os.path.join(DOCS_DIR, filename)
+            print(f"📄 Processing {filename}...")
+            sections = extract_sections(path)
+            embed_sections(sections, doc_name=filename.replace(".pdf", ""))
