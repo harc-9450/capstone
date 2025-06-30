@@ -1,104 +1,120 @@
-# COBEC Policy Assistant (RAG-Based AI System)
 
-This project is a GenAI-powered question-answering assistant designed to retrieve answers from COBEC policy documents based on version and access-level filters using a Retrieval-Augmented Generation (RAG) pipeline.
+# 📊 Q2: RAG-Based Excel Assistant using LangChain + Gemini
 
----
+## ✅ Problem Statement
 
-## 🔧 Tech Stack
-
-- **LangChain** – Orchestration layer
-- **Mistral-7B-Instruct** – Answer generation LLM
-- **SentenceTransformer (MiniLM)** – Embedding model for document chunks
-- **ChromaDB** – Vector store with persistent metadata support
-- **Streamlit** – Frontend interface for interacting with the assistant
+> Implement a RAG system for extracting information from multiple Excel sheets using LLM, Langchain, word embedding, excel sheet prompt and others tools if necessary. If possible display the extracted information in a table format.
 
 ---
 
-## 📁 Directory Structure
+## 🧾 Dataset Used
+
+- **File**: `Canada.xlsx`
+- **Source**: Public Canadian immigration dataset
+- **Structure**: Multiple sheets with tabular data on immigration statistics
+
+---
+
+## ⚙️ Tech Stack
+
+| Component       | Tool/Library                        |
+|----------------|-------------------------------------|
+| Vector DB       | ChromaDB                           |
+| Embeddings      | Google Gemini `models/embedding-001` |
+| LLM             | Gemini (`gemini-1.5-flash`)         |
+| Framework       | LangChain                          |
+| Format          | CLI output with `pandas` tables     |
+
+---
+
+## 📁 Folder Structure
 
 ```
-.
-├── docs/                      # Folder to store all COBEC PDF documents
-│   ├── COBECPolicy_v1_All.pdf
-│   ├── COBECPolicy_v2_HR.pdf
-│   └── COBECPolicy_v3_Legal.pdf
-├── embeddings/chroma_db/     # ChromaDB persistent store
-├── streamlit_app.py          # Main Streamlit UI
-├── models.py                 # LLM loading and answer generation
-├── rag_pipeline.py           # PDF processing and RAG pipeline
-├── app.py                    # Terminal-based Q&A interface
-└── README.md
-```
-
----
-
-## 🚀 How It Works
-
-1. **PDF Parsing** – Files in `docs/` are parsed and chunked.
-2. **Embedding** – Chunks are embedded using MiniLM and stored in ChromaDB.
-3. **Version + Access Filtering** – Chunks are tagged with version and access-level metadata.
-4. **Semantic Search** – Chunks matching the question and metadata are retrieved.
-5. **LLM Answering** – Mistral generates a final answer using top-k relevant chunks.
-6. **Frontend** – Users select version/access level and ask questions via Streamlit.
-
----
-
-## 🧪 Supported File Naming Format
-
-```
-COBECPolicy_<version>_<access>.pdf
-
-Examples:
-COBECPolicy_v1_All.pdf
-COBECPolicy_v2_HR.pdf
-COBECPolicy_v3_Legal.pdf
+q2_rag_excel_assistant/
+├── data/
+│   └── Canada.xlsx
+├── src/
+│   ├── data_loader.py       # Flatten Excel to dict
+│   ├── chunker.py           # LangChain Document wrapper
+│   ├── embed_store.py       # Embed and store to Chroma
+│   ├── query_engine.py      # Gemini-based RetrievalQA
+├── chroma_db/               # Persisted vector store
+├── main.py                  # CLI query app
+├── .env                     # GOOGLE_API_KEY
 ```
 
 ---
 
-## 🛠️ Run the App
+## ✅ Features & Workflow
 
-### Step 1: Embed All Documents
+1. **Load & Flatten Excel**  
+   All sheets are loaded and each row is converted to structured text.
+
+2. **Chunk & Convert to LangChain Documents**  
+   Each row includes `page_content` + `metadata` (`sheet`, `row`).
+
+3. **Embedding with Gemini**  
+   Documents are embedded using Gemini’s embedding model (`embedding-001`).
+
+4. **Stored in ChromaDB**  
+   Vector store persisted on disk (`chroma_db/`).
+
+5. **Query via Gemini LLM**  
+   Questions are answered using `RetrievalQA` with context-aware LLM generation.
+
+6. **Table Output**  
+   Matching rows are shown in table format using `pandas.to_markdown()`.
+
+---
+
+## 🧪 Example Output
+
+```
+❓ Enter your question about the Excel data:
+How many immigrants came to Canada from India in 2005?
+
+🤖 Gemini Answer:
+In 2005, 36210 immigrants came to Canada from India.
+
+📄 Top Matching Chunks:
+📝 Sheet: Canada by Citizenship (2), Row: 79
+| Country | Year | Immigrants |
+|---------|------|------------|
+| India   | 2005 | 36210      |
+```
+
+---
+
+## 🧼 Optimizations
+
+- Reuses ChromaDB if already created
+- Uses Gemini for both embedding and answering
+- Provides fallback if `tabulate` is missing
+
+---
+
+## ✅ Final Deliverables
+
+- [x] Load + flatten Excel with multiple sheets
+- [x] Embed & store in Chroma using Gemini
+- [x] Retrieval-based QA with Gemini LLM
+- [x] CLI question + answer system
+- [x] Matched rows shown in table format
+
+---
+
+## 📎 Setup
+
 ```bash
-python -c "from rag_pipeline import run_pipeline; run_pipeline()"
+pip install -r requirements.txt
 ```
 
-### Step 2: Launch Streamlit UI
+Create `.env`:
+```
+GOOGLE_API_KEY=your_api_key_here
+```
+
+Run:
 ```bash
-streamlit run streamlit_app.py
+python main.py
 ```
-
----
-
-## 📌 Smart Behavior
-
-- Version filtering is strict (e.g., v1 ≠ v2).
-- Access filtering supports fallback to `"All"` (e.g., HR users can also access `"All"` chunks).
-- No chunk = no answer (with warning shown to user).
-
----
-
-## ✅ Test Questions
-
-### For HR (`v2`, `HR`)
-- What actions does HCLTech take when an instance of child labor is reported?
-- How does HCLTech ensure workplace safety and health for its employees?
-
-### For Legal (`v3`, `Legal`)
-- What rights and accommodations does HCL provide for employees with disabilities?
-- How can an employee raise a complaint regarding discrimination under the Equal Opportunity Policy?
-
----
-
-## 📈 Future Scope
-
-- Upload support for new policies on UI
-- Document comparison mode
-- Hybrid search (BM25 + vector rerankers)
-
----
-
-## 👤 Author
-
-**Rohan Solanki**  
-ID: 52033152
