@@ -1,104 +1,81 @@
-# COBEC Policy Assistant (RAG-Based AI System)
+# Q17 – Bangalore House Price Prediction (Multivariate Linear Regression + PCA)
 
-This project is a GenAI-powered question-answering assistant designed to retrieve answers from COBEC policy documents based on version and access-level filters using a Retrieval-Augmented Generation (RAG) pipeline.
-
----
-
-## 🔧 Tech Stack
-
-- **LangChain** – Orchestration layer
-- **Mistral-7B-Instruct** – Answer generation LLM
-- **SentenceTransformer (MiniLM)** – Embedding model for document chunks
-- **ChromaDB** – Vector store with persistent metadata support
-- **Streamlit** – Frontend interface for interacting with the assistant
+### 📊 Objective
+Build a **multivariate linear regression** model to predict house prices in Bangalore using real-world features like size, location, area type, etc. Apply PCA to reduce dimensionality and visualize the impact.
 
 ---
 
-## 📁 Directory Structure
-
-```
-.
-├── docs/                      # Folder to store all COBEC PDF documents
-│   ├── COBECPolicy_v1_All.pdf
-│   ├── COBECPolicy_v2_HR.pdf
-│   └── COBECPolicy_v3_Legal.pdf
-├── embeddings/chroma_db/     # ChromaDB persistent store
-├── streamlit_app.py          # Main Streamlit UI
-├── models.py                 # LLM loading and answer generation
-├── rag_pipeline.py           # PDF processing and RAG pipeline
-├── app.py                    # Terminal-based Q&A interface
-└── README.md
-```
+### 🧩 Dataset Used
+- **Source**: Bengaluru_House_Data.csv
+- **Features**: area_type, availability, location, size, society, total_sqft, bath, balcony, price
 
 ---
 
-## 🚀 How It Works
+### ⚙️ Project Steps
 
-1. **PDF Parsing** – Files in `docs/` are parsed and chunked.
-2. **Embedding** – Chunks are embedded using MiniLM and stored in ChromaDB.
-3. **Version + Access Filtering** – Chunks are tagged with version and access-level metadata.
-4. **Semantic Search** – Chunks matching the question and metadata are retrieved.
-5. **LLM Answering** – Mistral generates a final answer using top-k relevant chunks.
-6. **Frontend** – Users select version/access level and ask questions via Streamlit.
+1. **Data Cleaning**
+   - Removed rows with missing critical fields
+   - Extracted `bhk` from size
+   - Cleaned `total_sqft` (handled ranges like '2100 - 2850')
+   - Removed outliers (e.g., sqft per bhk < 300, excessive bathrooms)
 
----
+2. **Feature Engineering**
+   - Encoded categorical fields: `location`, `area_type`
+   - Added binary `availability_flag` for "Ready to move"
+   - Scaled all numeric features using `StandardScaler`
 
-## 🧪 Supported File Naming Format
+3. **Model Building**
+   - Trained a **LinearRegression** model using all 1222 features
+   - Evaluated using **RMSE** and **R²**
 
-```
-COBECPolicy_<version>_<access>.pdf
+4. **PCA Analysis**
+   - Applied PCA with 2 and 3 components
+   - Visualized using 2D and 3D scatter plots
+   - Printed **explained variance** and **top contributing features**
 
-Examples:
-COBECPolicy_v1_All.pdf
-COBECPolicy_v2_HR.pdf
-COBECPolicy_v3_Legal.pdf
-```
-
----
-
-## 🛠️ Run the App
-
-### Step 1: Embed All Documents
-```bash
-python -c "from rag_pipeline import run_pipeline; run_pipeline()"
-```
-
-### Step 2: Launch Streamlit UI
-```bash
-streamlit run streamlit_app.py
-```
+5. **Regression with PCA**
+   - Trained and evaluated models using PCA-reduced features (2 and 3 components)
+   - Visualized actual vs predicted + residuals
 
 ---
 
-## 📌 Smart Behavior
+### 📈 Final Results
 
-- Version filtering is strict (e.g., v1 ≠ v2).
-- Access filtering supports fallback to `"All"` (e.g., HR users can also access `"All"` chunks).
-- No chunk = no answer (with warning shown to user).
-
----
-
-## ✅ Test Questions
-
-### For HR (`v2`, `HR`)
-- What actions does HCLTech take when an instance of child labor is reported?
-- How does HCLTech ensure workplace safety and health for its employees?
-
-### For Legal (`v3`, `Legal`)
-- What rights and accommodations does HCL provide for employees with disabilities?
-- How can an employee raise a complaint regarding discrimination under the Equal Opportunity Policy?
+| Model Type              | RMSE     | R² Score | Variance Explained |
+|-------------------------|----------|----------|---------------------|
+| Full Feature Regression | 123.76   | 0.105    | —                   |
+| PCA Regression (2 PC)   | 104.02   | 0.368    | 0.41%               |
+| PCA Regression (3 PC)   | 103.45   | 0.375    | 0.53%               |
 
 ---
 
-## 📈 Future Scope
+### 🔍 Top PCA Features
 
-- Upload support for new policies on UI
-- Document comparison mode
-- Hybrid search (BM25 + vector rerankers)
+| PC | Top Features                                             |
+|----|-----------------------------------------------------------|
+| 1  | bhk, bath, total_sqft, Plot Area, Super built-up Area     |
+| 2  | Super built-up Area, Plot Area, balcony, bath, total_sqft |
+| 3  | availability_flag, balcony, Carpet Area, Hosa Road, Whitefield |
 
 ---
 
-## 👤 Author
+### 📊 Visualizations
+- ✅ Actual vs Predicted Prices
+- ✅ Residual Distributions
+- ✅ PCA 2D and 3D Plots
+- ✅ Feature contributions to each PCA axis
 
-**Rohan Solanki**  
-ID: 52033152
+---
+
+### 🧠 Conclusion
+- PCA significantly improved model performance despite explaining only ~0.5% of the original variance.
+- The top features influencing price were `bhk`, `bath`, `sqft`, and key locations.
+- PCA reduced noise and helped the model generalize better, reducing RMSE by over 16% compared to the full model.
+
+---
+
+### ✅ Tools Used
+- Python 3.9.13
+- scikit-learn
+- pandas, matplotlib, seaborn
+- PCA, LinearRegression, StandardScaler
