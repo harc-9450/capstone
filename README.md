@@ -1,104 +1,61 @@
-# COBEC Policy Assistant (RAG-Based AI System)
+# Q1 – GenAI Assignment: RAG-Based Movie QA System
 
-This project is a GenAI-powered question-answering assistant designed to retrieve answers from COBEC policy documents based on version and access-level filters using a Retrieval-Augmented Generation (RAG) pipeline.
-
----
-
-## 🔧 Tech Stack
-
-- **LangChain** – Orchestration layer
-- **Mistral-7B-Instruct** – Answer generation LLM
-- **SentenceTransformer (MiniLM)** – Embedding model for document chunks
-- **ChromaDB** – Vector store with persistent metadata support
-- **Streamlit** – Frontend interface for interacting with the assistant
+### 🔍 Objective
+Build a RAG-powered question answering system using:
+- Sentence embeddings
+- ChromaDB
+- LangChain
+- Gemini (LLM)
 
 ---
 
-## 📁 Directory Structure
+### 🧩 Pipeline Structure
 
-```
-.
-├── docs/                      # Folder to store all COBEC PDF documents
-│   ├── COBECPolicy_v1_All.pdf
-│   ├── COBECPolicy_v2_HR.pdf
-│   └── COBECPolicy_v3_Legal.pdf
-├── embeddings/chroma_db/     # ChromaDB persistent store
-├── streamlit_app.py          # Main Streamlit UI
-├── models.py                 # LLM loading and answer generation
-├── rag_pipeline.py           # PDF processing and RAG pipeline
-├── app.py                    # Terminal-based Q&A interface
-└── README.md
-```
+1. **Load MovieLens data** (movies, users, ratings)
+2. **Generate per-movie summaries** (rating, genre, demographics)
+3. **Embed summaries** using different models (MiniLM, MPNet)
+4. **Store in ChromaDB** for similarity search
+5. **Answer questions** using LangChain + Gemini-Flash
+6. **Evaluate accuracy** using BLEU, ROUGE, and EM
 
 ---
 
-## 🚀 How It Works
+### 🔍 Sample Question
 
-1. **PDF Parsing** – Files in `docs/` are parsed and chunked.
-2. **Embedding** – Chunks are embedded using MiniLM and stored in ChromaDB.
-3. **Version + Access Filtering** – Chunks are tagged with version and access-level metadata.
-4. **Semantic Search** – Chunks matching the question and metadata are retrieved.
-5. **LLM Answering** – Mistral generates a final answer using top-k relevant chunks.
-6. **Frontend** – Users select version/access level and ask questions via Streamlit.
+> *“Which sci-fi movie is highly rated by young adults?”*
+
+**Answer (Gemini 2.0 Flash):**
+> *It Came from Outer Space (1953) is viewed by 35 year olds and has a rating of 3.36.*
 
 ---
 
-## 🧪 Supported File Naming Format
+### 📊 Evaluation Scores (Selected)
 
-```
-COBECPolicy_<version>_<access>.pdf
-
-Examples:
-COBECPolicy_v1_All.pdf
-COBECPolicy_v2_HR.pdf
-COBECPolicy_v3_Legal.pdf
-```
+| Question                                | BLEU  | ROUGE-1 | ROUGE-L | EM |
+|-----------------------------------------|-------|----------|----------|----|
+| Sci-fi movie for young adults           | 0.028 | 0.421    | 0.289    | 0  |
+| Romantic comedy favored by females      | 0.007 | 0.133    | 0.133    | 0  |
 
 ---
 
-## 🛠️ Run the App
+### 🤖 Model Notes
 
-### Step 1: Embed All Documents
-```bash
-python -c "from rag_pipeline import run_pipeline; run_pipeline()"
-```
-
-### Step 2: Launch Streamlit UI
-```bash
-streamlit run streamlit_app.py
-```
+- `gemini-1.5-flash-002`: Fast, but shallow reasoning
+- `gemini-2.0-flash`: More complete, handles comparisons better
+- `gemini-pro`: Inconsistent in LangChain (avoided)
 
 ---
 
-## 📌 Smart Behavior
+### 🧠 Justification
 
-- Version filtering is strict (e.g., v1 ≠ v2).
-- Access filtering supports fallback to `"All"` (e.g., HR users can also access `"All"` chunks).
-- No chunk = no answer (with warning shown to user).
+We compared different embedding models and Gemini LLM variants. While BLEU/ROUGE helped score outputs, qualitative judgment was also applied. We selected `gemini-2.0-flash` due to its balanced performance and stable API support.
 
 ---
 
-## ✅ Test Questions
+### ✅ Tools & Libraries
 
-### For HR (`v2`, `HR`)
-- What actions does HCLTech take when an instance of child labor is reported?
-- How does HCLTech ensure workplace safety and health for its employees?
-
-### For Legal (`v3`, `Legal`)
-- What rights and accommodations does HCL provide for employees with disabilities?
-- How can an employee raise a complaint regarding discrimination under the Equal Opportunity Policy?
-
----
-
-## 📈 Future Scope
-
-- Upload support for new policies on UI
-- Document comparison mode
-- Hybrid search (BM25 + vector rerankers)
-
----
-
-## 👤 Author
-
-**Rohan Solanki**  
-ID: 52033152
+- LangChain v0.2+
+- SentenceTransformers
+- ChromaDB
+- Gemini via `langchain_google_genai`
+- Python 3.9.13
